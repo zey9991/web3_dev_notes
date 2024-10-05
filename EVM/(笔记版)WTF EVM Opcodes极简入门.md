@@ -12,7 +12,7 @@
 
 ## Opcodes 简介
 
-Opcodes（操作码）是以太坊智能合约的基本单元。大家写的Solidity智能合约会被编译为字节码（bytecode），然后才能在EVM（以太坊虚拟机）上运行。而字节码就是由一系列Opcodes组成的。当用户在EVM中调用这个智能合约的函数时，EVM会解析并执行这些Opcodes，以实现合约逻辑。
+Opcodes（操作码）是以太坊智能合约的基本单元。大家写的Solidity智能合约会被编译为字节码（bytecode），然后才能在EVM（以太坊虚拟机）上运行。而==字节码bytecode就是由一系列Opcodes组成的==。当用户在EVM中调用这个智能合约的函数时，EVM会解析并执行这些Opcodes，以实现合约逻辑。
 
 例如，我们看一下几个常见的Opcodes：
 
@@ -3618,7 +3618,7 @@ def call(self):
 >    ```python
 >    account_source = account_db[self.txn.caller]
 >    account_target = account_db[hex(to_addr)]
->       
+>          
 >    if account_source['balance'] < value:
 >        self.success = False
 >        print("Insufficient balance for the transaction!")
@@ -4213,7 +4213,7 @@ def create(self):
 >                        thisAddr=new_contract_address,
 >                        gasPrice=self.txn.gasPrice,
 >                        gasLimit=self.txn.gasLimit)
->       
+>          
 >    evm_create = EVM(init_code, ctx)
 >    evm_create.run()
 >    ```
@@ -4230,7 +4230,7 @@ def create(self):
 > 10. **更新nonce并存储合约状态**：
 >     ```python
 >     creator_account['nonce'] += 1
->         
+>             
 >     account_db[new_contract_address] = {
 >         'balance': value,
 >         'nonce': 0,
