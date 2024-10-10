@@ -1373,9 +1373,8 @@ const transferEvents = await contract.queryFilter('事件名', 起始区块, 结
 contract.on("eventName", function)
 ```
 
-
-
-`contract.on`有两个参数，一个是要监听的事件名称`"eventName"`，需要包含在合约`abi`中；另一个是我们在事件发生时调用的函数。
+- `eventName`：要监听的事件名称，可以是区块、交易、账户变动等事件。需要包含在合约`abi`中。
+- `Function`：当 `eventName` 事件触发时，执行的回调函数，接收相关的事件数据作为参数。
 
 ### `contract.once`
 
@@ -1384,6 +1383,66 @@ contract.on("eventName", function)
 ```js
 contract.once("eventName", function)
 ```
+
+> [!TIP]
+>
+> ### 常见的事件类型
+> 1. **`"block"`**：
+>    - 当新的区块被添加到区块链时触发。
+>    - 回调函数接收一个参数：区块号。
+>    - 用法示例：
+>      ```js
+>      provider.on("block", (blockNumber) => {
+>          console.log("New Block: " + blockNumber);
+>      });
+>      ```
+>
+> 2. **`"pending"`**：
+>    - 当有交易进入到**未决交易池（mempool）**时触发。
+>    - 回调函数接收一个参数：交易哈希。
+>    - 用法示例：
+>      ```js
+>      provider.on("pending", (txHash) => {
+>          console.log("Pending Transaction: " + txHash);
+>      });
+>      ```
+>
+> 3. **`"transaction"`**：
+>    - 监听指定交易哈希的状态，等待其被矿工确认或失败。
+>    - 回调函数接收一个参数：交易对象。
+>    - 用法示例：
+>      ```js
+>      provider.on(txHash, (transaction) => {
+>          console.log("Transaction status: ", transaction);
+>      });
+>      ```
+>
+> 4. **`"filter"`**：
+>    - 通过过滤器监听特定合约的事件，如 `Transfer` 事件，或按条件筛选的交易。
+>    - 用法示例：
+>      ```js
+>      const filter = {
+>          address: contractAddress, // 监听的合约地址
+>          topics: [ethers.utils.id("Transfer(address,address,uint256)")] // 事件主题
+>      };
+>      provider.on(filter, (log) => {
+>          console.log(log);
+>      });
+>      ```
+>
+> 5. **`"error"`**：
+>    - 监听`provider`内部的错误，如网络连接断开等。
+>    - 回调函数接收一个参数：错误对象。
+>    - 用法示例：
+>      ```js
+>      provider.on("error", (error) => {
+>          console.error("Error detected:", error);
+>      });
+>      ```
+>
+> ### 总结
+> - **`provider.on`** 方法通过监听以太坊上的各种事件，帮助开发者监控区块、交易和合约的状态变化。
+> - 可以监听事件如 `block`、`pending` 交易、合约事件等，极大简化了网络交互的实时监控工作。
 
 
 
@@ -2422,7 +2481,7 @@ const interface2 = contract.interface
 >        "function transfer(address to, uint amount) external returns (bool)",
 >        "event Transfer(address indexed from, address indexed to, uint amount)"
 >    ];
->       
+>                
 >    const iface = new ethers.Interface(abi);
 >    console.log(iface);
 >    ```
@@ -2435,7 +2494,7 @@ const interface2 = contract.interface
 >    ```js
 >    const contractAddress = "<CONTRACT_ADDRESS>";
 >    const contract = new ethers.Contract(contractAddress, abi, provider);
->       
+>                
 >    // 直接从合约实例中获取 interface
 >    const iface2 = contract.interface;
 >    console.log(iface2);
@@ -2472,7 +2531,7 @@ const interface2 = contract.interface
 >        topics: [/* 事件的 topics */],
 >        data: "0x" // 事件的日志数据
 >    };
->       
+>                
 >    const parsedLog = iface.parseLog(log);
 >    console.log(parsedLog);
 >    ```
@@ -3514,6 +3573,12 @@ npm install merkletreejs
    // 签名：0x390d704d7ab732ce034203599ee93dd5d3cb0d4d1d7c600ac11726659489773d559b12d220f99f41d17651b0c1c6a669d346a397f8541760d6b32a5725378b241c
    ```
 
+   > [!TIP]
+   >
+   > `wallet.signMessage()`：`ethers.js` 提供的 `signMessage()` 函数用于签名消息。它会自动按照 `EIP191` 标准，在消息前添加前缀 `"\x19Ethereum Signed Message:\n32"`，然后对消息再次进行 `keccak256` 哈希，生成符合以太坊签名格式的消息。`\x19` 表示十六进制的 `0x19`，对应的是一个非打印字符，叫做“设备控制一”（Device Control 1，ASCII 值 25）。
+   >
+   > 该签名是使用钱包中的私钥生成的，并且会附带 `v, r, s` 三个部分（分别用于验证签名的有效性）。
+   
    
 
 ## 链下签名白名单铸造`NFT`
@@ -3677,6 +3742,10 @@ provider.on("pending", listener)
    const provider = new ethers.WebSocketProvider(ALCHEMY_MAINNET_WSSURL);
    ```
 
+   > [!TIP]
+   >
+   > 相比 HTTP 或 JSON-RPC 连接，WebSocket 连接可以持续保持长连接，适合实时监听事件、交易状态等信息。在 DApp 开发中，它常用于场景需要即时响应链上数据变化。
+
    
 
 2. 因为`mempool`中的未决交易很多，每秒上百个，很容易达到免费`rpc`节点的请求上限，因此我们需要用`throttle`限制请求频率。
@@ -3684,36 +3753,113 @@ provider.on("pending", listener)
    ```js
    function throttle(fn, delay) {
        let timer;
-       return function(){
-           if(!timer) {
-               fn.apply(this, arguments)
-               timer = setTimeout(()=>{
-                   clearTimeout(timer)
-                   timer = null
-               },delay)
+       return function() {
+           if (!timer) {
+               fn.apply(this, arguments);  // 调用目标函数
+               timer = setTimeout(() => {
+                   clearTimeout(timer);  // 清理计时器
+                   timer = null;  // 允许下一次调用
+               }, delay);  // 设置调用间隔
            }
        }
    }
+   
    ```
+
+   > [!TIP]
+   >
+   > ### 工作流程：
+   >
+   > 1. 第一次调用时，`timer` 为 `null`，所以目标函数 `fn` 会立即执行，并设置定时器 `timer`。
+   > 2. 在 `delay` 时间内，`timer` 存在，因此再调用该函数时，函数不会被再次执行。
+   > 3. 一旦 `delay` 时间过去，定时器会被清除，`timer` 变回 `null`，下次可以再次调用目标函数。
+
+   > [!NOTE]
+   >
+   > `setTimeout()` 是 JavaScript 中用于延迟执行代码的函数。它允许你在指定的时间之后运行一次函数或代码片段。
+   >
+   > ### 语法：
+   >
+   > ```js
+   > setTimeout(function, delay, param1, param2, ...)
+   > ```
+   >
+   > - **`function`**：要在延迟后执行的函数。可以是匿名函数或已定义的函数。
+   > - **`delay`**：延迟的时间（以毫秒为单位），在此时间之后执行 `function`。1秒 = 1000毫秒。
+   > - **`param1, param2, ...`**：可选参数，这些参数会在执行的函数中传入。
+   >
+   > ### 返回值：
+   > - `setTimeout()` 返回一个**定时器 ID**。你可以使用这个 ID 来清除定时器，防止它的执行（通过 `clearTimeout()`）。
+   >
+   > ### 基本用法：
+   >
+   > ```js
+   > setTimeout(() => {
+   >     console.log("3秒后执行的代码");
+   > }, 3000);
+   > ```
+   >
+   > 这段代码会在 3 秒后输出 `"3秒后执行的代码"`。
+   >
+   > ### 传递参数：
+   >
+   > 你可以在调用 `setTimeout` 时传递参数给延迟执行的函数：
+   >
+   > ```js
+   > function greet(name) {
+   >     console.log(`Hello, ${name}`);
+   > }
+   > 
+   > setTimeout(greet, 2000, "Peyton");
+   > // 2秒后输出: Hello, Peyton
+   > ```
+   >
+   > ### 使用 `clearTimeout()` 取消定时：
+   >
+   > 如果你想在定时器触发前取消它，可以使用 `clearTimeout()`：
+   >
+   > ```js
+   > let timerId = setTimeout(() => {
+   >     console.log("不会执行");
+   > }, 5000);
+   > 
+   > // 在定时器触发前清除
+   > clearTimeout(timerId);
+   > ```
+   >
+   > 这里 `clearTimeout(timerId)` 阻止了延迟执行的代码，所以 `"不会执行"` 不会被打印。
+   >
+   > ### 用途：
+   >
+   > 1. **延迟操作**：例如，延迟显示提示信息。
+   > 2. **轮询操作**：每隔一段时间进行一次数据检查或更新。
+   > 3. **防抖与节流**：与 `setTimeout` 配合使用，限制事件的频繁触发。
+   >
+   > `setTimeout` 提供了一种简单的方式来处理异步操作和延时执行。
 
    
 
 3. 监听`mempool`的未决交易，并打印交易哈希。
 
    ```js
-   let i = 0
-   provider.on("pending", async (txHash) => {
-       if (txHash && i < 100) {
-           // 打印txHash
+   let i = 0; // 计数器，记录已监听的交易数量
+   
+   provider.on("pending", async (txHash) => { // 监听“pending”事件
+       if (txHash && i < 100) { // 如果有交易哈希，并且监听的交易数小于 100
+           // 打印交易哈希和当前的时间戳
            console.log(`[${(new Date).toLocaleTimeString()}] 监听Pending交易 ${i}: ${txHash} \r`);
-           i++
-           }
+           i++; // 每次监听到一个交易，计数器加一
+       }
    });
+   
    ```
 
-   
-
-   
+   > [!TIP]
+   >
+   > **`provider.on("pending", async (txHash) => {...})`**：
+   >
+   > - 监听 `provider`（WebSocket Provider）上的 `pending` 事件。
+   > - `pending` 事件触发时，回调函数接收一个参数 `txHash`，即待处理交易的哈希。
 
    ![获取pending交易哈希](https://cdn.jsdelivr.net/gh/zey9991/mdpic/202410071533453.png)
 
@@ -3734,12 +3880,28 @@ provider.on("pending", listener)
    }, 1000));
    ```
 
+   > [!NOTE]
+   >
+   > ###  事件监听 (`provider.on`)
+   > ```js
+   > provider.on("pending", throttle(async (txHash) => { ... }, 1000));
+   > ```
+   > - `provider.on("pending", callback)`：监听以太坊网络的`pending`交易事件，当新的交易进入未决交易池时触发。
+   > - `throttle(callback, 1000)`：使用限流函数对交易监听进行限制，每1000毫秒最多处理一次新交易。
+   > - **未决交易**：交易还未被打包进区块链，仍在等待确认。
+   >
+   > ### 整体流程
+   > 1. **监听未决交易**：当新交易进入以太坊网络的未决交易池时，触发 `pending` 事件。
+   > 2. **限流控制**：通过 `throttle` 限制每秒最多执行一次监听操作。
+   > 3. **获取交易详情**：根据交易哈希，获取详细的交易数据，并输出到控制台。
+   > 4. **限制处理数量**：最多监听并处理 100 笔交易。
+   >
+   > 
    
-
    
-
+   
    ![获取交易详情](https://cdn.jsdelivr.net/gh/zey9991/mdpic/202410071533897.png)
-
+   
    
 
 ## 总结
@@ -3800,6 +3962,25 @@ const iface = ethers.Interface([
    network.then(res => console.log(`[${(new Date).toLocaleTimeString()}] 连接到 chain ID ${res.chainId}`));
    ```
 
+   > [!TIP]
+   >
+   > `network.then()`：因为 `getNetwork()` 是一个异步操作，这里使用 `then()` 来处理它返回的 `Promise`，在网络信息获取完成后输出结果。
+   >
+   > `res.chainId`：`res` 是网络信息对象，`chainId` 表示当前连接的区块链的ID。
+   >
+   > 输出结果会显示连接的时间和 `chainId`。
+   >
+   > 在这段代码中，`res` 是 `Promise` 的结果，也就是 `resolve` 的值。在 JavaScript 中，通常使用 `then()` 方法来处理 `Promise` 被 `resolve` 后的结果。这个结果就是我们常见的 `resolve` 值，在这里命名为 `res`，但你也可以使用任何其他变量名，如 `result`、`networkInfo` 等，效果是相同的。
+   >
+   > ```js
+   > provider.getNetwork().then(networkInfo => {
+   >     console.log(networkInfo.chainId);  // 输出链ID
+   > });
+   > 
+   > ```
+   >
+   > 
+
    
 
 2. 创建`Interface`对象，用于解码交易详情。
@@ -3827,15 +4008,17 @@ const iface = ethers.Interface([
    // 处理bigInt
    function handleBigInt(key, value) {
        if (typeof value === "bigint") {
-           return value.toString() + "n"; // or simply return value.toString();
+           return value.toString() + "n"; // 将 BigInt 转换为字符串，避免 JSON.stringify 报错
        }
-   return value;
+       return value;
    }
+   //在 JSON.stringify 序列化时，bigInt 类型会报错，因此需要一个函数将 bigInt 转换为字符串。
+   //这个函数会在下面的 JSON.stringify 中作为第三个参数使用，用来处理交易详情中的 bigInt 值。
    
    provider.on('pending', async (txHash) => {
    if (txHash) {
        const tx = await provider.getTransaction(txHash)
-       j++
+       j++//用来记录接收到的交易数量。
        if (tx !== null && tx.data.indexOf(selector) !== -1) {
            console.log(`[${(new Date).toLocaleTimeString()}]监听到第${j + 1}个pending交易:${txHash}`)
            console.log(`打印解码交易详情:${JSON.stringify(iface.parseTransaction(tx), handleBigInt, 2)}`)
@@ -3851,6 +4034,64 @@ const iface = ethers.Interface([
    
 
    ![监听并解码交易](https://cdn.jsdelivr.net/gh/zey9991/mdpic/202410071534045.png)
+
+   > [!TIP]
+   >
+   > 这段代码的功能是监听以太坊网络中的未决（`pending`）交易，筛选出 ERC20 代币的转账交易，并解析交易详情。以下是各部分的详细解释：
+   >
+   > ### 1. 处理 `bigInt` 类型
+   > ```js
+   > function handleBigInt(key, value) {
+   >     if (typeof value === "bigint") {
+   >         return value.toString() + "n"; // 将 BigInt 转换为字符串，避免 JSON.stringify 报错
+   >     }
+   >     return value;
+   > }
+   > ```
+   > - 在 JSON.stringify 序列化时，`bigInt` 类型会报错，因此需要一个函数将 `bigInt` 转换为字符串。
+   > - 这个函数会在下面的 `JSON.stringify` 中作为第三个参数使用，用来处理交易详情中的 `bigInt` 值。
+   >
+   > ### 2. 监听 `pending` 交易
+   > ```js
+   > provider.on('pending', async (txHash) => {
+   >     if (txHash) {
+   >         const tx = await provider.getTransaction(txHash);
+   >         j++;
+   > ```
+   > - 使用 `provider.on('pending')` 监听所有未决交易，`txHash` 是交易的哈希值。
+   > - `provider.getTransaction(txHash)` 通过交易哈希获取完整的交易信息，返回一个包含交易详情的对象 `tx`。
+   > - `j++` 用来记录接收到的交易数量。
+   >
+   > ### 3. 过滤 ERC20 代币转账交易
+   > ```js
+   >     if (tx !== null && tx.data.indexOf(selector) !== -1) {
+   > ```
+   > - 交易的 `tx.data` 包含调用合约的编码数据。ERC20 代币转账函数的选择器是 `0xa9059cbb`，即 `transfer(address,uint256)` 的前 4 个字节。
+   > - 如果 `tx.data` 包含该选择器，说明这是一笔 ERC20 代币的转账交易。
+   >
+   > ### 4. 解码并打印交易详情
+   > ```js
+   >         console.log(`[${(new Date).toLocaleTimeString()}]监听到第${j + 1}个pending交易:${txHash}`);
+   >         console.log(`打印解码交易详情:${JSON.stringify(iface.parseTransaction(tx), handleBigInt, 2)}`);
+   >         console.log(`转账目标地址:${iface.parseTransaction(tx).args[0]}`);
+   >         console.log(`转账金额:${ethers.formatEther(iface.parseTransaction(tx).args[1])}`);
+   > ```
+   > - `iface.parseTransaction(tx)` 使用 `ethers` 中的接口（`Interface`）对交易进行解码。
+   >   - `iface` 是合约的 ABI 接口。
+   > - 解码后的结果中，`args[0]` 是转账目标地址，`args[1]` 是转账的金额。
+   > - `ethers.formatEther()` 将代币的金额转换为以太坊的标准单位（以 `ether` 为单位）。
+   > - 这些信息会通过 `console.log` 打印出来。
+   >
+   > ### 5. 移除监听器
+   > ```js
+   >         provider.removeListener('pending', this);
+   >     }
+   > });
+   > ```
+   > - 由于 `provider.on('pending')` 是持续监听交易的，`provider.removeListener('pending', this)` 可以在处理完交易后移除监听，避免重复处理相同的交易。
+   >
+   > ### 总结
+   > 这段代码会监听 `pending` 的 ERC20 代币转账交易，在检测到转账时，解码并打印交易的详细信息（目标地址和转账金额）。
 
    
 
@@ -3978,6 +4219,23 @@ for (let i = 1; i <= 101; i += 1) {
 }
 ```
 
+> [!TIP]
+>
+> 这段代码的目的是通过随机生成以太坊钱包，找到符合以特定数字（例如 `001`, `002`, `003` 等）开头的地址。具体操作如下：
+>
+> 1. **生成循环次数**：循环 101 次，分别生成从 `001` 到 `101` 开头的靓号地址。
+> 2. **正则表达式匹配**：对于每个 `i`，用 `padStart(3, '0')` 将数字填充成三位数格式（例如 001, 002, 003），并构造一个正则表达式，匹配以 `0x` 后跟上这三位数开头的地址。
+> 3. **随机生成钱包**：使用 `ethers.Wallet.createRandom()` 方法随机生成一个以太坊钱包，直到钱包地址与正则表达式匹配为止。
+> 4. **打印结果**：找到符合条件的地址后，打印钱包的地址和私钥。
+>
+> ### 关键点：
+> - **`padStart()` 函数**：确保数字被格式化为 3 位数，不足三位的前面补 `0`，比如 `1` 会变成 `001`。
+> - **正则表达式**：`new RegExp(\`^0x${paddedIndex}.*$\`)`，用以检查钱包地址是否以 `0x` 后跟上特定的三位数（例如 `0x001`）开头。
+> - **随机生成与验证**：不断生成钱包并验证其地址是否符合正则表达式的要求，直到找到符合条件的地址。
+>
+> ### 注意：
+> 这种方式只是模拟生成符合特定格式的地址，生成以 `0x001` 开头的靓号地址难度相对较低，但随着位数的增加，生成过程的耗时会急剧增加（每多一位，难度增加 16 倍）。
+
 
 
 ### 时间问题
@@ -4004,7 +4262,25 @@ function CreateRegex(total) {
 }
 ```
 
-
+> [!NOTE]
+>
+> ```js
+> // 调用 CreateRegex 函数生成前 5 个正则表达式
+> const regexList = CreateRegex(5);
+> console.log(regexList);
+> /* 输出：
+> [
+>   /^0x001.*$/,
+>   /^0x002.*$/,
+>   /^0x003.*$/,
+>   /^0x004.*$/,
+>   /^0x005.*$/
+> ]
+> */
+> 
+> ```
+>
+> 
 
 接着在生成钱包的函数中传入该数组并进行匹配，如匹配到则从数组中删除对应regex
 
@@ -4033,6 +4309,106 @@ async function CreateWallet(regexList) {
 
 
 此时时间缩短至可接受范围，测试生成100个顺序地址耗费时间大概为2分钟。
+
+> [!TIP]
+>
+> 对于生成靓号地址的两种方法，我们可以进行以下算法分析：
+>
+> ### 方法 1
+>
+> ```javascript
+> import { ethers } from "ethers";
+> 
+> var wallet; 
+> for (let i = 1; i <= 101; i += 1) {
+>     const paddedIndex = (i).toString().padStart(3, '0');
+>     const regex = new RegExp(`^0x${paddedIndex}.*$`);  
+>     var isValid = false;
+>     while(!isValid){
+>         wallet = ethers.Wallet.createRandom();
+>         isValid = regex.test(wallet.address);
+>     }
+>     console.log(`钱包地址：${wallet.address}`);
+>     console.log(`钱包私钥：${wallet.privateKey}`);
+> }
+> ```
+>
+> #### 时间复杂度
+> - **外层循环**：执行 `n` 次（从 1 到 100 的循环），因此为 \( O(n) \)。
+> - **内层循环**：`ethers.Wallet.createRandom()` 和 `regex.test(wallet.address)` 的复杂度取决于生成地址的成功概率。假设生成一个以特定格式匹配的地址的概率为 \( p \)，则平均需要的尝试次数为 \( \frac{1}{p} \)。因此，内层循环的期望时间复杂度是 \( O\left(\frac{1}{p}\right) \)。
+>
+> 综合起来，方法 1 的时间复杂度为：
+> \[ O(n \cdot \frac{1}{p}) \]
+>
+> #### 空间复杂度
+> - 只使用了常量空间存储变量，空间复杂度为 \( O(1) \)。
+>
+> ---
+>
+> ### 方法 2
+>
+> ```javascript
+> async function CreateWallet(regexList) {
+>     let wallet;
+>     var isValid = false;
+> 
+>     while (!isValid && regexList.length > 0) {
+>         wallet = ethers.Wallet.createRandom();
+>         const index = regexList.findIndex(regex => regex.test(wallet.address));
+>         if (index !== -1) {
+>             isValid = true;
+>             regexList.splice(index, 1);
+>         }
+>     }
+>     const data = `${wallet.address}:${wallet.privateKey}`;
+>     console.log(data);
+>     return data;
+> }
+> ```
+>
+> #### 时间复杂度
+> - **外层循环**：与方法 1 相似，依然是 \( O\left(\frac{1}{p}\right) \)，因为它也是生成钱包并检查是否符合条件。
+> - **查找方法**：`findIndex` 方法使用线性查找，复杂度为 \( O(n) \) 在最坏情况下（假设在最坏情况下需要遍历整个 `regexList`）。不过，在实际操作中，随着匹配成功的正则表达式数量减少，平均情况下会更快。
+>
+> 综上，方法 2 的时间复杂度为：
+> \[ O\left(\frac{1}{p} \cdot n\right) \]
+>
+> #### 空间复杂度
+> - 使用了 `regexList` 数组，其空间复杂度为 \( O(n) \)。
+>
+> ---
+>
+> ### 总结
+> - **方法 1**：时间复杂度为 \( O(n \cdot \frac{1}{p}) \)，空间复杂度为 \( O(1) \)。
+> - **方法 2**：时间复杂度为 \( O\left(\frac{1}{p} \cdot n\right) \)，空间复杂度为 \( O(n) \)。
+>
+> 因此，在实际生成多个靓号地址时，方法 2 更加高效，特别是在正则表达式匹配成功后，能有效减少不必要的随机钱包生成。
+
+> [!NOTE]
+>
+> `findIndex` 方法使用线性查找的原因主要有以下几点：
+>
+> ### 1. 数据结构
+> - **数组特性**：`findIndex` 方法是针对数组的，而数组本身是一个无序集合，默认情况下不支持更高效的查找方法（如二分查找）。如果数组是有序的，二分查找的效率更高，但在这个案例中，正则表达式数组通常是动态生成的且无特定顺序，使用线性查找是最直接且简单的方式。
+>
+> ### 2. 动态变化
+> - **正则表达式的动态性**：在使用过程中，正则表达式数组会随着找到符合条件的地址而被修改（元素被删除）。这种动态变化使得使用更高效的查找方法（例如：哈希表）变得复杂，因为需要维护额外的结构来保持快速查找和动态更新的平衡。
+>
+> ### 3. 实现复杂度
+> - **实现的复杂性**：实现一个更高效的查找方法（如哈希表）需要额外的工作，例如：
+>   - 管理哈希冲突。
+>   - 确保数组的唯一性和更新时的效率。
+>   - 额外的内存开销，特别是在需要存储多个正则表达式时。
+>
+> ### 4. 预期性能
+> - **平均情况**：对于生成靓号的情况，正则表达式通常是相对较小的集合（如 100 个地址），线性查找的性能在这种情况下往往是足够的。对于小数据集，线性查找的开销相对较低，且代码更简单，易于理解和维护。
+>
+> ### 5. 使用场景
+> - **灵活性与通用性**：线性查找能够应对数组中的任何情况，适用于许多不同类型的集合和数据结构，而更复杂的查找算法可能需要特定的条件和预处理。
+>
+> 综上所述，虽然 `findIndex` 使用线性查找可能在某些情况下效率不如更高级的查找算法，但在实际应用中，考虑到数组的动态性、实现复杂度以及平均性能，使用线性查找是一个合适的选择。
+
+
 
 ## 总结
 
@@ -4110,6 +4486,12 @@ const main = async () => {
 main()
 ```
 
+> [!TIP]
+>
+> `getStorage` 方法用于从指定合约的指定槽中读取数据，返回的 `privateData` 是读取的存储值。
+>
+> 使用 `dataSlice` 方法提取 `privateData` 中的特定部分（从第 12 个字节开始），并将其转换为地址格式。
+
 
 
 ## 总结
@@ -4170,12 +4552,19 @@ anvil
 1. 创建连接到foundry本地测试网的`provider`对象，用于监听和发送交易。foundry本地测试网默认url：`"http://127.0.0.1:8545"`。
 
    ```js
-   //1.连接到foundry本地网络
+   // 1. 连接到 Foundry 本地网络
    
    import { ethers } from "ethers";
-   const provider = new ethers.providers.JsonRpcProvider('<http://127.0.0.1:8545>')
-   let network = provider.getNetwork()
-   network.then(res => console.log(`[${(new Date).toLocaleTimeString()}]链接到网络${res.chainId}`))
+   
+   // 创建一个 JSON-RPC 提供者，连接到本地的 Foundry 网络
+   const provider = new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545');
+   
+   // 获取网络信息
+   let network = provider.getNetwork();
+   
+   // 打印连接的网络 ID
+   network.then(res => console.log(`[${(new Date).toLocaleTimeString()}] 链接到网络 ${res.chainId}`));
+   
    ```
 
    
@@ -4199,13 +4588,16 @@ anvil
 3. 创建一个包含我们感兴趣的`mint()`函数的`interface`对象，用于在监听过程中使用。如果你不了解它，可以阅读[WTF Ethers极简教程第20讲：解码交易](https://github.com/WTFAcademy/WTFEthers/blob/main/20_DecodeTx/readme.md)。
 
    ```js
-   //3.创建Interface对象，用于检索mint函数。
-   //V6版本 const iface = new ethers.Interface(contractABI)
-   const iface = new ethers.utils.Interface(contractABI)
+   // 3. 创建 Interface 对象，用于检索 mint 函数。
+   // V6版本 const iface = new ethers.Interface(contractABI)
+   const iface = new ethers.utils.Interface(contractABI);
+   
+   // 获取函数签名
    function getSignature(fn) {
-   // V6版本 return iface.getFunction("mint").selector
-       return iface.getSighash(fn)
+       // V6版本 return iface.getFunction("mint").selector
+       return iface.getSighash(fn);
    }
+   
    ```
 
    
@@ -4223,24 +4615,29 @@ anvil
 5. 我们先看一下正常的mint结果是怎样的。我们利用`provider.on`方法监听mempool中的未决交易，当交易出现时，我们会利用交易哈希`txHash`来读取交易详情`tx`，并筛选出调用了`mint()`函数的交易，查看交易结果，获取mint的nft编码及对应的owner，比对交易发起地址与owner是否一致。确认，mint按预期执行。
 
    ```js
-   //5. 构建正常mint函数，检验mint结果，显示正常。
+   // 5. 构建正常 mint 函数，检验 mint 结果，显示正常。
    const normaltx = async () => {
-   provider.on('pending', async (txHash) => {
-       provider.getTransaction(txHash).then(
-           async (tx) => {
-               if (tx.data.indexOf(getSignature("mint")) !== -1) {
-                   console.log(`[${(new Date).toLocaleTimeString()}]监听到交易:${txHash}`)
-                   console.log(`铸造发起的地址是:${tx.from}`)//打印交易发起地址
-                   await tx.wait()
-                   const tokenId = await contractFM.totalSupply()
-                   console.log(`mint的NFT编号:${tokenId}`)
-                   console.log(`编号${tokenId}NFT的持有者是${await contractFM.ownerOf(tokenId)}`)//打印nft持有者地址
-                   console.log(`铸造发起的地址是不是对应NFT的持有者:${tx.from === await contractFM.ownerOf(tokenId)}`)//比较二者是否一致
+       provider.on('pending', async (txHash) => {
+           provider.getTransaction(txHash).then(
+               async (tx) => {
+                   // 检查交易数据中是否包含 mint 函数的签名哈希
+                   if (tx.data.indexOf(getSignature("mint")) !== -1) {
+                       console.log(`[${(new Date).toLocaleTimeString()}] 监听到交易: ${txHash}`);
+                       console.log(`铸造发起的地址是: ${tx.from}`); // 打印交易发起地址
+   
+                       await tx.wait(); // 等待交易确认
+   
+                       // 获取当前总供应量作为 tokenId
+                       const tokenId = await contractFM.totalSupply();
+                       console.log(`mint 的 NFT 编号: ${tokenId}`);
+                       console.log(`编号 ${tokenId} NFT 的持有者是 ${await contractFM.ownerOf(tokenId)}`); // 打印 NFT 持有者地址
+                       console.log(`铸造发起的地址是不是对应 NFT 的持有者: ${tx.from === await contractFM.ownerOf(tokenId)}`); // 比较二者是否一致
+                   }
                }
-           }
-       )
-   })
-   }
+           );
+       });
+   };
+   
    ```
 
    
@@ -4286,12 +4683,34 @@ anvil
    }
    ```
 
-   
-
-   
-
    ![img](https://www.wtf.academy/assets/images/23-3-0faed4c3c30e870bf6ff1efb519da2fd.png)
 
+   > [!TIP]
+   >
+   > **监听待处理交易**：
+   >
+   > - 代码使用 `provider.on('pending', ...)` 监听所有待处理的交易。
+   >
+   > **检查交易类型**：
+   >
+   > - 通过检查交易数据，判断是否为调用 `mint` 函数的交易，并确保交易发起者不是当前钱包地址。
+   >
+   > **准备前运行交易**：
+   >
+   > - 创建一个新的交易对象 `frontRunTx`，设置相应的目标地址、交易金额、gas 费用等参数。使用 `mul(2)` 使 gas 费用高于当前交易，以确保交易优先级。
+   >
+   > **发起前运行交易**：
+   >
+   > - 发送前运行交易，并等待确认。
+   >
+   > **输出交易和 NFT 状态**：
+   >
+   > - 输出 NFT 的编号、持有者信息以及相关的交易信息，确保该地址不是原始铸造交易的发起者。
+   >
+   > **检验区块内数据结果**：
+   >
+   > - 通过 `provider.getBlock(tx.blockNumber)` 获取区块数据，并输出区块内的交易信息。
+   
    
 
 ## 总结
@@ -4346,7 +4765,7 @@ let code = await provider.getCode(contractAddress)
 
 这里，我们仅需检测 `transfer(address, uint256)` 和 `totalSupply()` 两个函数，而不用检查全部6个，这是因为：
 
-1. `ERC20`标准中只有 `transfer(address, uint256)` 不包含在 `ERC721`标准、`ERC1155`和`ERC777`标准中。因此如果一个合约包含 `transfer(address, uint256)` 的选择器，就能确定它是 `ERC20` 代币合约，而不是其他。
+1. `transfer(address, uint256)` 是 ERC20 标准中定义的唯一转账方法，而其他标准（如 ERC721、ERC1155 和 ERC777）并不包含此函数。因此，如果一个合约实现了 `transfer(address, uint256)` 的选择器，这可以作为判断其为 ERC20 合约的依据。这种方法依赖于选择器的唯一性，确保了与其他标准的区分。
 2. 额外检测 `totalSupply()` 是为了防止[选择器碰撞](https://github.com/AmazingAng/WTFSolidity/blob/main/S01_ReentrancyAttack/readme.md)：一串随机的字节码可能和 `transfer(address, uint256)` 的选择器（4字节）相同。
 
 代码如下
@@ -4370,6 +4789,34 @@ async function erc20Checker(addr){
     }
 }
 ```
+
+> [!TIP]
+>
+> ### 代码解析
+>
+> 1. **获取合约字节码**：
+>    ```javascript
+>    let code = await provider.getCode(addr)
+>    ```
+>    这行代码通过 Ethereum 的 JSON-RPC 提供者获取指定地址（`addr`）的字节码。
+>
+> 2. **检查是否为合约地址**：
+>    ```javascript
+>    if(code != "0x"){
+>    ```
+>    如果返回的字节码是 `0x`，则表示该地址不是合约地址，因此直接返回 `null`。
+>
+> 3. **检查选择器**：
+>    ```javascript
+>    if(code.includes("a9059cbb") && code.includes("18160ddd")){
+>    ```
+>    - `a9059cbb` 是 `transfer(address, uint256)` 函数的选择器。
+>    - `18160ddd` 是 `totalSupply()` 函数的选择器。
+>    - 如果字节码中同时包含这两个选择器，则返回 `true`，表示该合约为 ERC20 合约。
+>
+> 4. **返回值**：
+>    如果字节码中没有这两个选择器，则返回 `false`，表示不是 ERC20 合约。
+>
 
 
 
@@ -4407,6 +4854,64 @@ main()
 
 
 脚本成功检测出 `DAI` 合约是 `ERC20` 合约，而 `BAYC` 合约不是 `ERC20` 合约。
+
+> [!NOTE]
+>
+> 如果要运行完整的代码，可以将 `erc20Checker` 函数与主函数整合在一起，如下所示：
+>
+> ```js
+> const { ethers } = require("ethers"); // 确保安装了ethers库
+> 
+> // 初始化 provider
+> const provider = new ethers.providers.JsonRpcProvider('<YOUR_INFURA_OR_ALCHEMY_URL>');
+> 
+> // ERC20检查器
+> async function erc20Checker(addr) {
+>     try {
+>         // 获取合约bytecode
+>         let code = await provider.getCode(addr);
+>         
+>         // 非合约地址的bytecode是0x
+>         if (code === "0x") {
+>             return null;
+>         }
+> 
+>         // 定义选择器常量
+>         const TRANSFER_SELECTOR = "a9059cbb"; // transfer(address, uint256)
+>         const TOTAL_SUPPLY_SELECTOR = "18160ddd"; // totalSupply()
+> 
+>         // 检查bytecode中是否包含transfer函数和totalSupply函数的selector
+>         const isERC20 = code.includes(TRANSFER_SELECTOR) && code.includes(TOTAL_SUPPLY_SELECTOR);
+> 
+>         return isERC20; // 返回 true 或 false
+>     } catch (error) {
+>         console.error(`Error checking ERC20 status for address ${addr}:`, error);
+>         return null; // 出现错误时返回null
+>     }
+> }
+> 
+> // DAI address (mainnet)
+> const daiAddr = "0x6b175474e89094c44da98b954eedeac495271d0f";
+> // BAYC address (mainnet)
+> const baycAddr = "0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d";
+> 
+> const main = async () => {
+>     // 检查DAI合约是否为ERC20
+>     let isDaiERC20 = await erc20Checker(daiAddr);
+>     console.log(`1. Is DAI a ERC20 contract: ${isDaiERC20}`);
+> 
+>     // 检查BAYC合约是否为ERC20
+>     let isBaycERC20 = await erc20Checker(baycAddr);
+>     console.log(`2. Is BAYC a ERC20 contract: ${isBaycERC20}`);
+> }
+> 
+> main();
+> 
+> ```
+>
+> 
+
+
 
 ## 总结
 
@@ -4536,7 +5041,7 @@ npm install --save @flashbots/ethers-provider-bundle
    type: 2,
    to: "0x25df6DA2f4e5C178DdFF45038378C0b08E0Bce54",
    value: ethers.parseEther("0.001"),
-   maxFeePerGas: GWEI * 100n,
+   maxFeePerGas: GWEI * 100n, //n 是一个后缀，用于表示 JavaScript 中的 BigInt 类型
    maxPriorityFeePerGas: GWEI * 50n
    }
    ```
@@ -4589,6 +5094,56 @@ npm install --save @flashbots/ethers-provider-bundle
    }
    ```
 
+   > [!TIP]
+   >
+   > `JSON.stringify` 是 JavaScript 中用于将 JavaScript 对象转换为 JSON 字符串的方法。这个方法可以将对象、数组和其他数据结构序列化为字符串格式，以便于存储或传输。
+   >
+   > ### JSON.stringify
+   >
+   > - **基本用法**：
+   >     ```javascript
+   >     const obj = { name: "Alice", age: 25 };
+   >     const jsonString = JSON.stringify(obj);
+   >     console.log(jsonString); // 输出: '{"name":"Alice","age":25}'
+   >     ```
+   >
+   > - **第二个参数**：`JSON.stringify` 可以接受第二个参数（`replacer`），用于指定哪些属性应该被包含或如何处理某些值。
+   >
+   > ### 代码中的使用
+   >
+   > 在你的代码中，`JSON.stringify` 的使用如下：
+   >
+   > ```javascript
+   > console.log(JSON.stringify(simulation, (key, value) => 
+   >     typeof value === 'bigint' 
+   >         ? value.toString() 
+   >         : value, // return everything else unchanged
+   >     2
+   > ));
+   > ```
+   >
+   > 这里的 `JSON.stringify` 被用来序列化 `simulation` 对象，并且有以下几个要点：
+   >
+   > 1. **自定义处理**：
+   >     - 代码中的第二个参数是一个函数，用于处理序列化过程中每个属性的值。
+   >     - 这个函数接收两个参数：
+   >         - `key`：当前属性的名称。
+   >         - `value`：当前属性的值。
+   >
+   > 2. **BigInt 处理**：
+   >     ```javascript
+   >     typeof value === 'bigint' ? value.toString() : value
+   >     ```
+   >     - 如果 `value` 的类型是 `BigInt`，则将其转换为字符串（`value.toString()`），因为 `JSON` 格式不支持 `BigInt`，会抛出错误。
+   >     - 如果不是 `BigInt` 类型，保持原值不变。
+   >
+   > 3. **缩进格式**：
+   >     - 第三个参数 `2` 用于指定输出字符串的缩进级别，便于阅读和调试。这个值表示每层嵌套使用两个空格进行缩进。
+   >
+   > ### 总结
+   >
+   > 这段代码通过自定义的 `replacer` 函数，确保在序列化过程中不会因为 `BigInt` 类型而导致错误，同时保持其他数据不变。通过这种方式，你可以安全地将复杂的数据结构转化为 JSON 字符串格式，便于日志记录或调试。
+
    
 
 7. 发送交易 Bundle 上链。由于 Flashbots Bundle 需要指定执行的区块高度，且测试网Flashbots的节点很少，需要尝试很多次才能成功上链，所以我们用了一个循环，让 bundle 在未来的 100 个区块内依次尝试执行。我们用到了 flashbots provider 的 `sendRawBundle()` 方法发送 bundle。交易结果有三种状态：
@@ -4631,6 +5186,46 @@ npm install --save @flashbots/ethers-provider-bundle
    }
    ```
 
+   > [!TIP]
+   >
+   > `console.log(JSON.stringify(res, null, 2))`:`null`表示不使用任何替换器函数，所有属性都将被包含在输出中。
+   
+   > [!NOTE]
+   >
+   > `process.exit(1)` 是 Node.js 中用来终止当前进程的函数。下面是对它的详细解释：
+   >
+   > ### 1. `process.exit`
+   >
+   > - **功能**：`process.exit()` 方法用于终止 Node.js 进程，并且可以选择性地指定退出时的状态码。
+   > - **语法**：`process.exit([code])`
+   >   - `code`（可选）：退出状态码，通常是一个整数。默认值是 `0`，表示成功。非零状态码通常表示发生了某种错误或异常情况。
+   >
+   > ### 2. 状态码的含义
+   >
+   > - **`0`**：表示程序成功执行完毕，没有错误。
+   > - **`1`**：表示程序以错误状态退出，通常用于指示发生了某种错误或异常。开发者可以自定义使用不同的非零状态码来表示不同类型的错误。
+   >
+   > ### 3. 使用场景
+   >
+   > 在你的代码中，`process.exit(1)` 被用来在发生特定条件（例如 “Nonce 太高，请重新设置”）时立即终止程序。这种做法通常用于：
+   >
+   > - **错误处理**：在发生错误时终止程序，以避免进一步的操作。
+   > - **清理资源**：在结束时释放资源（尽管 Node.js 在退出时会自动清理大部分资源）。
+   > - **返回错误信息**：通过非零状态码向调用环境（如 shell 或其他程序）传递错误信息。
+   >
+   > ### 示例
+   >
+   > 在你提供的代码片段中，`process.exit(1)` 是在检测到 “Nonce 太高” 的情况下调用的，这意味着发生了一个错误，程序因此需要终止。
+   >
+   > ```javascript
+   > else if (bundleResolution === FlashbotsBundleResolution.AccountNonceTooHigh) {
+   >     console.log("Nonce 太高，请重新设置");
+   >     process.exit(1);
+   > }
+   > ```
+   >
+   > 这段代码的逻辑是：如果交易的 nonce 值过高，说明可能会影响后续的交易，因此输出错误信息并终止程序，以避免进一步的错误操作。
+   
    
 
 ## 总结
@@ -4676,8 +5271,12 @@ npm install --save @flashbots/ethers-provider-bundle
        version: version,
        chainId: chainId,
        verifyingContract: contractAddress,
-   };
+   }; //JS的对象数据类型
    ```
+
+   > [!TIP]
+   >
+   > **Domain**：EIP712 的域定义了你签名的上下文。它包含合约的基本信息，如名称、版本、链 ID 和验证合约的地址。这些信息确保了签名的唯一性和有效性，使得不同合约或版本间的签名不可互换。
 
    
 
@@ -4701,6 +5300,12 @@ npm install --save @flashbots/ethers-provider-bundle
    };
    ```
 
+   > [!TIP]
+   >
+   > **Types**：定义要签名数据的结构。这是 EIP712 的一个关键部分，确保在签名时能够验证数据的类型和格式，避免数据被篡改。
+   >
+   > **Message**：包含具体要签名的数据。`message` 中的字段应与 `types` 中的定义相匹配。这个数据将在合约或客户端进行验证。
+
    
 
 4. 调用 wallet 对象的 `signTypedData()` 签名方法，参数为之前创建的 `domain`、`types` 和 `message` 变量：
@@ -4711,6 +5316,10 @@ npm install --save @flashbots/ethers-provider-bundle
    console.log("Signature:", signature);
    // Signature: 0xdca07f0c1dc70a4f9746a7b4be145c3bb8c8503368e94e3523ea2e8da6eba7b61f260887524f015c82dd77ebd3c8938831c60836f905098bf71b3e6a4a09b7311b
    ```
+
+   > [!TIP]
+   >
+   > **签名**：使用钱包对象的 `signTypedData` 方法对域、类型和消息进行签名。这个步骤生成一个数字签名，表示发送者（钱包拥有者）同意这个消息的内容。签名后，即使数据被传输，内容也能保持完整且安全。
 
    
 
